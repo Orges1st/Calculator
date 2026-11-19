@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="sq">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kalkulatori</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0f172a;
+    font-family: Arial, sans-serif;
+  }
+  .calculator {
+    width: 320px;
+    padding: 20px;
+    background: #1e293b;
+    border-radius: 20px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  }
+  .screen {
+    background: #0f172a;
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    text-align: right;
+    min-height: 90px;
+  }
+  #expr { color: #64748b; font-size: 16px; min-height: 22px; }
+  #display {
+    color: #f8fafc;
+    font-size: 38px;
+    font-weight: bold;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .buttons {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  button {
+    height: 60px;
+    border: none;
+    border-radius: 12px;
+    font-size: 22px;
+    font-weight: bold;
+    cursor: pointer;
+    background: #334155;
+    color: #f8fafc;
+    transition: transform 0.08s, filter 0.15s;
+  }
+  button:hover { filter: brightness(1.2); }
+  button:active { transform: scale(0.94); }
+  .op { background: #f59e0b; color: #1e293b; }
+  .clear { background: #ef4444; }
+  .equals { background: #22c55e; color: #052e16; }
+</style>
+</head>
+<body>
+  <div class="calculator">
+    <div class="screen">
+      <div id="expr"></div>
+      <div id="display">0</div>
+    </div>
+
+    <div class="buttons">
+      <button class="clear" data-action="clear">C</button>
+      <button data-action="back">⌫</button>
+      <button class="op" data-op="mod">%</button>
+      <button class="op" data-op="div">÷</button>
+
+      <button data-num="7">7</button>
+      <button data-num="8">8</button>
+      <button data-num="9">9</button>
+      <button class="op" data-op="mul">×</button>
+
+      <button data-num="4">4</button>
+      <button data-num="5">5</button>
+      <button data-num="6">6</button>
+      <button class="op" data-op="sub">−</button>
+
+      <button data-num="1">1</button>
+      <button data-num="2">2</button>
+      <button data-num="3">3</button>
+      <button class="op" data-op="add">+</button>
+
+      <button data-action="sign">±</button>
+      <button data-num="0">0</button>
+      <button data-action="dot">.</button>
+      <button class="equals" data-action="equals">=</button>
+    </div>
+  </div>
+
+<script>
+  const symbols = { add: "+", sub: "−", mul: "×", div: "÷", mod: "%" };
+  const displayEl = document.getElementById("display");
+  const exprEl = document.getElementById("expr");
+
+  let current = "0";
+  let previous = null;
+  let operator = null;
+  let startNew = true;
+
+  function render() {
+    displayEl.textContent = current;
+    exprEl.textContent = operator ? previous + " " + symbols[operator] : "";
+  }
+
+  // Thërret Java për llogaritjen
+  async function calculate(a, op, b) {
+    const url = `/calculate?a=${encodeURIComponent(a)}&op=${op}&b=${encodeURIComponent(b)}`;
+    const res = await fetch(url);
+    return res.json();
+  }
+
+  function showError(msg) {
+    current = msg;
+    previous = null;
+    operator = null;
+    startNew = true;
+    render();
+  }
+
+  function inputNumber(n) {
+    if (startNew || current === "0") {
+      current = n;
+      startNew = false;
+    } else {
+      current += n;
+    }
+    render();
+  }
+
+  function inputDot() {
+    if (startNew) {
+      current = "0.";
+      startNew = false;
+    } else if (!current.includes(".")) {
+      current += ".";
+    }
+    render();
+  }
+
+  async function chooseOperator(op) {
+    if (isNaN(Number(current))) return;
+    if (operator && !startNew) {
+      const data = await calculate(previous, operator, current);
+      if (data.error) return showError(data.error);
+      current = data.result;
+    }
+    previous = current;
+    operator = op;
+    startNew = true;
+    render();
+  }
+
+  async function equals() {
+    if (!operator) return;
+    const data = await calculate(previous, operator, current);
+    if (data.error) return showError(data.error);
+    exprEl.textContent = previous + " " + symbols[operator] + " " + current + " =";
+    current = data.result;
+    previous = null;
+    operator = null;
+    startNew = true;
+    displayEl.textContent = current;
+  }
+
+  function clearAll() {
+    current = "0";
+    previous = null;
+    operator = null;
+    startNew = true;
+    render();
+  }
+
+  function backspace() {
+    if (startNew || current.length <= 1) {
+      current = "0";
+      startNew = true;
+    } else {
+      current = current.slice(0, -1);
+    }
+    render();
+  }
+
+  function toggleSign() {
+    if (current === "0" || isNaN(Number(current))) return;
+    current = current.startsWith("-") ? current.slice(1) : "-" + current;
+    render();
+  }
+
+  // Klikimet e butonave
+  document.querySelectorAll("button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      if (btn.dataset.num) inputNumber(btn.dataset.num);
+      else if (btn.dataset.op) chooseOperator(btn.dataset.op);
+      else if (btn.dataset.action === "dot") inputDot();
+      else if (btn.dataset.action === "equals") equals();
+      else if (btn.dataset.action === "clear") clearAll();
+      else if (btn.dataset.action === "back") backspace();
+      else if (btn.dataset.action === "sign") toggleSign();
+    });
+  });
+
+  // Tastiera
+  document.addEventListener("keydown", e => {
+    if (e.key >= "0" && e.key <= "9") inputNumber(e.key);
+    else if (e.key === ".") inputDot();
+    else if (e.key === "+") chooseOperator("add");
+    else if (e.key === "-") chooseOperator("sub");
+    else if (e.key === "*") chooseOperator("mul");
+    else if (e.key === "/") { e.preventDefault(); chooseOperator("div"); }
+    else if (e.key === "%") chooseOperator("mod");
+    else if (e.key === "Enter" || e.key === "=") equals();
+    else if (e.key === "Backspace") backspace();
+    else if (e.key === "Escape") clearAll();
+  });
+
+  render();
+</script>
+</body>
+</html>
